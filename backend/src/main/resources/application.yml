@@ -5,8 +5,9 @@ spring:
   application:
     name: interview-system
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/interview_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
+    # 生产环境通过 DB_URL / DB_USERNAME / DB_PASSWORD 环境变量覆盖为外部 MySQL 实例
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/interview_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
@@ -31,8 +32,8 @@ app:
     secret: ${JWT_SECRET:interview-system-dev-secret-change-me-0123456789}
     expire-hours: 24
   cors:
-    # 允许的前端来源，逗号分隔；* 表示全部（仅建议开发环境）
-    allowed-origins: "*"
+    # 允许的前端来源，逗号分隔；* 表示全部（仅建议开发环境）。生产用 CORS_ORIGIN 指定 Pages 域名
+    allowed-origins: ${CORS_ORIGIN:*}
   interviewers:
     # 面试官配置（A/B/C/D 一面与二面共用组、FLOAT 流动人员）
     admin-name: admin

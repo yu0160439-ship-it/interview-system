@@ -1,0 +1,3 @@
+# SPA history fallback: serve index.html for unmatched routes.
+# /api/* is handled by Pages Functions first and is not affected by this rule.
+/*    /index.html   200
