@@ -1,4 +1,4 @@
-/** 登录态存储：与旧版前端保持同一 localStorage 键，便于迁移过渡 */
+/** 登录态存储：按标签隔离存于 sessionStorage，关闭标签/浏览器即失效 */
 import { ref } from 'vue';
 
 const SESSION_KEY = 'admin_session';
@@ -16,7 +16,7 @@ export interface Session {
 
 function loadFromStorage(): Session | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed?.name ? parsed : null;
@@ -33,12 +33,12 @@ export function getSession(): Session | null {
 }
 
 export function setSession(session: Session): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
   sessionRef.value = session;
 }
 
 export function clearSession(): void {
-  localStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
   sessionRef.value = null;
 }
 

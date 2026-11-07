@@ -58,7 +58,7 @@ const redirect = (route.query.redirect as string) || '';
 
 onMounted(() => {
   try {
-    const raw = localStorage.getItem('admin_session');
+    const raw = sessionStorage.getItem('admin_session');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed?.name) {
