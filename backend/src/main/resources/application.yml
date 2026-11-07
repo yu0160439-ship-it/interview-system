@@ -1,0 +1,87 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: interview-system
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/interview_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: "yyyy-MM-dd HH:mm:ss"
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: none
+
+app:
+  jwt:
+    # 生产环境请通过环境变量 JWT_SECRET 覆盖，长度至少 32 字符
+    secret: ${JWT_SECRET:interview-system-dev-secret-change-me-0123456789}
+    expire-hours: 24
+  cors:
+    # 允许的前端来源，逗号分隔；* 表示全部（仅建议开发环境）
+    allowed-origins: "*"
+  interviewers:
+    # 面试官配置（A/B/C/D 一面与二面共用组、FLOAT 流动人员）
+    admin-name: admin
+    admin-password: ${ADMIN_PASSWORD:change-me}
+    delete-all-password: ${DELETE_ALL_PASSWORD:change-me}
+    members:
+      - name: 面试官A1
+        group: A
+      - name: 面试官A2
+        group: A
+      - name: 面试官A3
+        group: A
+      - name: 面试官B1
+        group: B
+      - name: 面试官B2
+        group: B
+      - name: 面试官B3
+        group: B
+      - name: 面试官C1
+        group: C
+      - name: 面试官C2
+        group: C
+      - name: 面试官C3
+        group: C
+      - name: 面试官D1
+        group: D
+      - name: 面试官D2
+        group: D
+      - name: 面试官D3
+        group: D
+      - name: 流动人员1
+        group: FLOAT
+      - name: 流动人员2
+        group: FLOAT
+      - name: 流动人员3
+        group: FLOAT
+      - name: 流动人员4
+        group: FLOAT
+      - name: 流动人员5
+        group: FLOAT
+      - name: 流动人员6
+        group: FLOAT
+      - name: 流动人员7
+        group: FLOAT
+      - name: 流动人员8
+        group: FLOAT
+      - name: 流动人员9
+        group: FLOAT
+
+logging:
+  level:
+    com.example.interview: info

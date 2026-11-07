@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <!-- 此处放置社团 Logo 占位图 -->
+  <rect x="10" y="10" width="140" height="140" rx="20" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2"/>
+  <text x="80" y="72" text-anchor="middle" font-size="15" fill="#6366f1">社团Logo</text>
+  <text x="80" y="96" text-anchor="middle" font-size="12" fill="#818cf8">此处放Logo</text>
+</svg>
