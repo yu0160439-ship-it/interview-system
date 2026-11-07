@@ -1,16 +1,14 @@
-# Render 部署蓝图：后端 Spring Boot Web Service。
+# Render 部署蓝图：后端 Spring Boot 以 Docker 容器运行（Render 原生运行时不支持 Java）。
 # 数据库为外部 MySQL（Render 免费层不提供 MySQL），连接参数在控制台以环境变量填写。
 services:
   - type: web
     name: interview-system
-    runtime: java
-    rootDir: backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
     plan: free
-    buildCommand: mvn -DskipTests package
-    startCommand: java -jar target/interview-system-0.0.1-SNAPSHOT.jar
+    healthCheckPath: /api/health
     envVars:
-      - key: JAVA_VERSION
-        value: "21"
       - key: DB_URL
         sync: false
       - key: DB_USERNAME
