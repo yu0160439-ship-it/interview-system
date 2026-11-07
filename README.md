@@ -83,12 +83,15 @@ npm run build    # 生产构建，产物输出到 frontend/dist
 
 | 环境变量 | 作用 | 开发默认值 |
 | --- | --- | --- |
-| `DB_PASSWORD` | MySQL 密码 | `123456` |
+| `DB_URL` | JDBC 连接串 | 本地 `jdbc:mysql://127.0.0.1:3306/interview_system...` |
+| `DB_USERNAME` | 数据库用户名 | `root` |
+| `DB_PASSWORD` | 数据库密码 | `123456` |
 | `JWT_SECRET` | JWT 签名密钥（长度至少 32 字符） | 内置开发占位密钥 |
 | `ADMIN_PASSWORD` | 管理员登录口令 | `change-me` |
 | `DELETE_ALL_PASSWORD` | 清空全部考生的二次确认口令 | `change-me` |
+| `CORS_ORIGIN` | 允许的前端来源，逗号分隔；`*` 为全部（仅开发用） | `*` |
 
-数据库连接地址、用户名在 `application.yml` 的 `spring.datasource` 中配置，可按本地环境调整。
+外部 MySQL 实例通过 `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` 覆盖；业务表由后端启动时自动创建（`IF NOT EXISTS`），无需手动导入 DDL。线上部署步骤见 [`docs/deploy-guide.md`](docs/deploy-guide.md)。
 
 ## 默认账号与角色权限
 
