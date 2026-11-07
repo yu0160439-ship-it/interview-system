@@ -1,6 +1,6 @@
 <#
   学生社团招新面试叫号系统 - 后端 API 回归测试
-  运行前提：后端 8080 已启动、MySQL 已就绪、前端 5173 dev server 可代理
+  运行前提：后端 8080 已启动、PostgreSQL 已就绪、前端 5173 dev server 可代理
   用法：pwsh -File .\tests\api-test.ps1
   说明：测试会清空 interview_system 库中的考生数据（使用 delete-all 密码），请勿对生产数据运行
 #>

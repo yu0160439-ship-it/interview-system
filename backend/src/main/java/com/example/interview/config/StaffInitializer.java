@@ -66,9 +66,9 @@ public class StaffInitializer implements ApplicationRunner {
                   role          VARCHAR(20)  NOT NULL,
                   group_name    VARCHAR(10),
                   password      VARCHAR(255) NOT NULL,
-                  _created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  _updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                  _created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  _updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
                 """);
     }
 

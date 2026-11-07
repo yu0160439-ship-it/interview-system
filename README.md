@@ -16,7 +16,7 @@
 
 | 端 | 技术 |
 | --- | --- |
-| 后端 | Spring Boot 3.5、Java 21、MyBatis-Plus、MySQL 8、JJWT、Apache Commons CSV、Lombok |
+| 后端 | Spring Boot 3.5、Java 21、MyBatis-Plus、PostgreSQL、JJWT、Apache Commons CSV、Lombok |
 | 前端 | Vue 3、Vite 6、Element Plus、Vue Router、qrcode |
 | 实时通信 | Server-Sent Events（SSE） |
 | 测试 | Python 回归脚本（`tests/`） |
@@ -28,7 +28,7 @@
 ├── backend/                # Spring Boot 后端
 │   ├── src/main/java/...    # 认证、业务服务、SSE 推送、配置
 │   ├── src/main/resources/  # application.yml
-│   ├── db/schema-mysql.sql  # 建库建表脚本
+│   ├── db/schema-postgres.sql  # PostgreSQL 建表脚本（参考/兜底）
 │   └── pom.xml
 ├── frontend/               # Vue3 + Vite 前端
 │   ├── src/pages/          # 报名、分流台、工作台、二面、大屏、结果管理等页面
@@ -42,17 +42,13 @@
 
 - JDK 21 及以上
 - Node.js 18+（推荐 20+）与 npm
-- MySQL 8.x
+- PostgreSQL 14+（线上使用 Supabase Postgres）
 
 ## 快速开始
 
 ### 1. 初始化数据库
 
-启动 MySQL 后执行建库脚本，自动创建 `interview_system` 库及 `candidates`、`interviewer_scores`、`staff` 表：
-
-```bash
-mysql -u root -p < backend/db/schema-mysql.sql
-```
+业务表（`candidates`、`interviewer_scores`、`staff`）由后端首次启动时自动创建（`IF NOT EXISTS`），无需手动导入 DDL；如需手动建表可参考 [`backend/db/schema-postgres.sql`](backend/db/schema-postgres.sql)。
 
 ### 2. 启动后端
 
@@ -83,15 +79,15 @@ npm run build    # 生产构建，产物输出到 frontend/dist
 
 | 环境变量 | 作用 | 开发默认值 |
 | --- | --- | --- |
-| `DB_URL` | JDBC 连接串 | 本地 `jdbc:mysql://127.0.0.1:3306/interview_system...` |
-| `DB_USERNAME` | 数据库用户名 | `root` |
+| `DB_URL` | JDBC 连接串 | 本地 `jdbc:postgresql://127.0.0.1:5432/interview_system` |
+| `DB_USERNAME` | 数据库用户名 | `postgres` |
 | `DB_PASSWORD` | 数据库密码 | `123456` |
 | `JWT_SECRET` | JWT 签名密钥（长度至少 32 字符） | 内置开发占位密钥 |
 | `ADMIN_PASSWORD` | 管理员登录口令 | `change-me` |
 | `DELETE_ALL_PASSWORD` | 清空全部考生的二次确认口令 | `change-me` |
 | `CORS_ORIGIN` | 允许的前端来源，逗号分隔；`*` 为全部（仅开发用） | `*` |
 
-外部 MySQL 实例通过 `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` 覆盖；业务表由后端启动时自动创建（`IF NOT EXISTS`），无需手动导入 DDL。线上部署步骤见 [`docs/deploy-guide.md`](docs/deploy-guide.md)。
+外部 PostgreSQL 实例通过 `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` 覆盖；业务表由后端启动时自动创建（`IF NOT EXISTS`），无需手动导入 DDL。线上部署步骤见 [`docs/deploy-guide.md`](docs/deploy-guide.md)。
 
 ## 默认账号与角色权限
 
@@ -107,7 +103,7 @@ npm run build    # 生产构建，产物输出到 frontend/dist
 
 ## 测试
 
-`tests/` 目录下为接口回归与边界测试脚本，需先启动后端与 MySQL：
+`tests/` 目录下为接口回归与边界测试脚本，需先启动后端与 PostgreSQL：
 
 - `regress-30-flow.py`：30 名考生全链路回归（报名 → 签到 → 分组 → 一面叫号打分 → 审批 → 推进二面 → 二面签到/分组/叫号/打分 → 录取/淘汰）。
 - `regress-edge.py`：权限与状态边界（重复报名/签到、非法打分、非法状态流转、越权操作拦截等）。

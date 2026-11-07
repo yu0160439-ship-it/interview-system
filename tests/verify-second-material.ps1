@@ -1,6 +1,6 @@
 <#
   补充验证：一面评分/意向部门是否随考生带入二面队列（二面资料备选）
-  前提：后端 8080 已启动、MySQL 就绪；会清空考生数据
+  前提：后端 8080 已启动、PostgreSQL 就绪；会清空考生数据
 #>
 $ErrorActionPreference = 'Continue'
 $BASE = 'http://127.0.0.1:8080/api/candidates'

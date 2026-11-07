@@ -41,25 +41,25 @@ public class SchemaInitializer implements ApplicationRunner {
                   skills              TEXT,
                   introduction        TEXT,
                   free_time           VARCHAR(200),
-                  accept_transfer     TINYINT      NOT NULL DEFAULT 1,
-                  global_number       INT,
+                  accept_transfer     SMALLINT     NOT NULL DEFAULT 1,
+                  global_number       INTEGER,
                   group_name          VARCHAR(10),
-                  group_number       INT,
+                  group_number        INTEGER,
                   status              VARCHAR(30)  NOT NULL DEFAULT 'pre_registered',
-                  score_total         INT          NOT NULL DEFAULT 0,
+                  score_total         INTEGER      NOT NULL DEFAULT 0,
                   accept_adjust       VARCHAR(10)  NOT NULL DEFAULT '否',
                   second_interviewer  VARCHAR(50),
                   second_score        DECIMAL(6,2),
                   second_comment      TEXT,
                   final_department    VARCHAR(50),
-                  _created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  _updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                  INDEX idx_candidates_status      (status),
-                  INDEX idx_candidates_group_name  (group_name),
-                  INDEX idx_candidates_name         (name),
-                  INDEX idx_candidates_phone        (phone)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                  _created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  _updated_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
                 """);
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_candidates_status     ON candidates (status)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_candidates_group_name ON candidates (group_name)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_candidates_name        ON candidates (name)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_candidates_phone       ON candidates (phone)");
 
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS interviewer_scores (
@@ -70,13 +70,13 @@ public class SchemaInitializer implements ApplicationRunner {
                   round             VARCHAR(10) NOT NULL DEFAULT 'first',
                   score             DECIMAL(6,2) NOT NULL,
                   judge_comment     TEXT,
-                  _created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  _updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                  UNIQUE KEY uk_candidate_interviewer_round (candidate_id, interviewer_name, round),
-                  INDEX idx_interviewer_scores_candidate_id (candidate_id),
-                  INDEX idx_interviewer_scores_interviewer  (interviewer_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                  _created_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  _updated_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  CONSTRAINT uk_candidate_interviewer_round UNIQUE (candidate_id, interviewer_name, round)
+                )
                 """);
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_interviewer_scores_candidate_id   ON interviewer_scores (candidate_id)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_interviewer_scores_interviewer    ON interviewer_scores (interviewer_name)");
 
         log.info("业务表结构校验完成（candidates / interviewer_scores，已存在则跳过）");
     }

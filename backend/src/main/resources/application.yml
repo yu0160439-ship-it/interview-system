@@ -5,11 +5,11 @@ spring:
   application:
     name: interview-system
   datasource:
-    # 生产环境通过 DB_URL / DB_USERNAME / DB_PASSWORD 环境变量覆盖为外部 MySQL 实例
-    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/interview_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:root}
+    # 生产环境通过 DB_URL / DB_USERNAME / DB_PASSWORD 环境变量覆盖为 Supabase Postgres 实例
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/interview_system}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:123456}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
   jackson:
     time-zone: Asia/Shanghai
     date-format: "yyyy-MM-dd HH:mm:ss"
