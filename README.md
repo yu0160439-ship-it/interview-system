@@ -101,13 +101,32 @@ npm run build    # 生产构建，产物输出到 frontend/dist
 
 完整账号清单见 [`docs/工作人员账号清单.md`](docs/工作人员账号清单.md)。
 
+工作人员接口必须携带登录接口返回的 `Authorization: Bearer <token>`；缺失、无效或过期令牌返回 HTTP 401。操作权限以令牌对应的工作人员身份为准，请求体中的 `operatorName`、`interviewerName` 不能代替登录或提升权限。公开报名、学生签到、公开详情、大屏数据及当前场次读取保持匿名可用，切换场次仅限管理员。
+
 ## 测试
 
-`tests/` 目录下为接口回归与边界测试脚本，需先启动后端与 PostgreSQL：
+无需启动后端或连接数据库的隔离回归检查：
+
+```powershell
+cd backend
+.\mvnw.cmd "-Dtest=AuthInterceptorTests,CandidateServiceTests,SecondRoundServiceTests,CandidateMapperSqlTests" test
+cd ../frontend
+npm test
+npm run build
+cd ..
+python -B -m unittest discover -s tests -p "test_api_client.py"
+```
+
+Linux / macOS 使用 `./mvnw` 替换 `mvnw.cmd`。默认的后端 `contextLoads` 测试仍需可连接的 PostgreSQL，因此上述命令显式选择隔离测试。
+
+`tests/` 下的 Python 接口回归需先启动后端与 PostgreSQL，脚本会创建或修改考生数据，请使用独立测试数据库。它们通过共享 `api_client.py` 登录并缓存各账号 JWT：工作人员写请求按顶层操作人字段选择真实账号，读请求默认使用管理员，公开学生接口不携带令牌；流动人员权限测试使用流动人员自己的令牌。密码可通过脚本进程的 `ADMIN_PASSWORD`（默认 `change-me`）和 `STAFF_PASSWORD`（默认 `123456`）覆盖，须与数据库中的当前账号口令一致。
 
 - `regress-30-flow.py`：30 名考生全链路回归（报名 → 签到 → 分组 → 一面叫号打分 → 审批 → 推进二面 → 二面签到/分组/叫号/打分 → 录取/淘汰）。
 - `regress-edge.py`：权限与状态边界（重复报名/签到、非法打分、非法状态流转、越权操作拦截等）。
 - `regress-edge-scores.py`：评分轮次隔离与边界校验。
+- `verify-second-flow.py`：单名考生的两轮三席评分与二面大屏复验。
+
+`regress-edge.py` 和 `regress-edge-scores.py` 依赖前一个全链路脚本留下的状态样本；`verify-second-flow.py` 请在独立的空测试库运行，避免固定测试手机号重复。历史 PowerShell 脚本保留旧接口流程，工作人员请求须显式携带登录令牌，不能直接用于验证当前 A-D 二面流程。
 
 ## 安全须知（上线前必读）
 

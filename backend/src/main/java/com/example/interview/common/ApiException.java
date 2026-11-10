@@ -17,6 +17,10 @@ public class ApiException extends RuntimeException {
         return new ApiException(400, msg);
     }
 
+    public static ApiException unauthorized(String msg) {
+        return new ApiException(401, msg);
+    }
+
     public static ApiException notFound(String msg) {
         return new ApiException(404, msg);
     }

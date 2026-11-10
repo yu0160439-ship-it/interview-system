@@ -13,12 +13,18 @@ public interface CandidateMapper extends BaseMapper<Candidate> {
 
     /**
      * 候选搜索列表（含按平均分筛选与多种排序）。
-     * avg_score 列会映射到 Candidate.averageScore（@TableField(exist=false)）。
+     * 先按考生聚合一面评分，再在 WHERE 中筛选；二面评分不参与一面排序。
      */
     @Select("""
             <script>
-            SELECT c.*, (SELECT AVG(score) FROM interviewer_scores s WHERE s.candidate_id = c.id) AS avg_score
+            SELECT c.*, fs.avg_score
             FROM candidates c
+            LEFT JOIN (
+              SELECT candidate_id, ROUND(AVG(score), 2) AS avg_score
+              FROM interviewer_scores
+              WHERE round = 'first'
+              GROUP BY candidate_id
+            ) fs ON fs.candidate_id = c.id
             <where>
               <if test="keyword != null and keyword != ''">
                 AND (c.name LIKE CONCAT('%', #{keyword}, '%')
@@ -28,13 +34,9 @@ public interface CandidateMapper extends BaseMapper<Candidate> {
               <if test="groupName != null and groupName != ''">AND c.group_name = #{groupName}</if>
               <if test="status != null and status != ''">AND c.status = #{status}</if>
               <if test="excludeCompleted">AND c.status != 'first_completed'</if>
+              <if test="minScore != null">AND fs.avg_score &gt;= #{minScore}</if>
+              <if test="maxScore != null">AND fs.avg_score &lt;= #{maxScore}</if>
             </where>
-            <if test="minScore != null or maxScore != null">
-              HAVING
-              <if test="minScore != null">avg_score &gt;= #{minScore}</if>
-              <if test="minScore != null and maxScore != null"> AND </if>
-              <if test="maxScore != null">avg_score &lt;= #{maxScore}</if>
-            </if>
             <choose>
               <when test="sortBy == 'globalNumber'">
                 ORDER BY
@@ -50,10 +52,10 @@ public interface CandidateMapper extends BaseMapper<Candidate> {
                 ORDER BY c._created_at ${sortOrderDesc ? 'DESC' : 'ASC'}
               </when>
               <otherwise>
-                ORDER BY avg_score ${sortOrderDesc ? 'DESC' : 'ASC'}, c.global_number ASC
+                ORDER BY fs.avg_score ${sortOrderDesc ? 'DESC' : 'ASC'} NULLS LAST, c.global_number ASC
               </otherwise>
             </choose>
-            LIMIT #{limit} OFFSET #{offset}
+            <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if>
             </script>
             """)
     List<Candidate> searchList(
@@ -65,15 +67,20 @@ public interface CandidateMapper extends BaseMapper<Candidate> {
             @Param("maxScore") Double maxScore,
             @Param("sortBy") String sortBy,
             @Param("sortOrderDesc") boolean sortOrderDesc,
-            @Param("limit") int limit,
+            @Param("limit") Integer limit,
             @Param("offset") int offset);
 
-    /** 搜索总数（含按平均分筛选时用子查询 HAVING）。 */
+    /** 搜索总数与列表共用一面平均分的筛选口径。 */
     @Select("""
             <script>
-            SELECT COUNT(*) FROM (
-              SELECT c.id, (SELECT AVG(score) FROM interviewer_scores s WHERE s.candidate_id = c.id) AS avg_score
+            SELECT COUNT(*)
               FROM candidates c
+              LEFT JOIN (
+                SELECT candidate_id, ROUND(AVG(score), 2) AS avg_score
+                FROM interviewer_scores
+                WHERE round = 'first'
+                GROUP BY candidate_id
+              ) fs ON fs.candidate_id = c.id
               <where>
                 <if test="keyword != null and keyword != ''">
                   AND (c.name LIKE CONCAT('%', #{keyword}, '%')
@@ -83,14 +90,9 @@ public interface CandidateMapper extends BaseMapper<Candidate> {
                 <if test="groupName != null and groupName != ''">AND c.group_name = #{groupName}</if>
                 <if test="status != null and status != ''">AND c.status = #{status}</if>
                 <if test="excludeCompleted">AND c.status != 'first_completed'</if>
+                <if test="minScore != null">AND fs.avg_score &gt;= #{minScore}</if>
+                <if test="maxScore != null">AND fs.avg_score &lt;= #{maxScore}</if>
               </where>
-              <if test="minScore != null or maxScore != null">
-                HAVING
-                <if test="minScore != null">avg_score &gt;= #{minScore}</if>
-                <if test="minScore != null and maxScore != null"> AND </if>
-                <if test="maxScore != null">avg_score &lt;= #{maxScore}</if>
-              </if>
-            ) t
             </script>
             """)
     long searchCount(

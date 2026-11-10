@@ -2,7 +2,8 @@
 """30 人全链路回归（合并版）：报名->签到->分组->一面叫号/三席打分->切二面场次->推进二面->
 二面签到/分组/叫号/三席打分->录取/淘汰。覆盖 waiting/interviewing/first_completed/
 second_waiting/second_completed/final_admitted/final_rejected 分支，并校验一面分不被二面污染。"""
-import json, urllib.request, urllib.error, collections
+import collections
+from api_client import ApiClient
 
 BASE = "http://localhost:8080/api/candidates"
 ADMIN = "admin"
@@ -21,20 +22,7 @@ def check(label, cond, extra=""):
     if not cond:
         fails.append((label, extra))
 
-def call(method, path, body=None):
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
-    r = urllib.request.Request(BASE + path, data=data, method=method)
-    r.add_header("Content-Type", "application/json; charset=utf-8")
-    try:
-        with urllib.request.urlopen(r, timeout=10) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, (json.loads(raw) if raw else {})
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "ignore")
-        try:
-            return e.code, json.loads(raw)
-        except Exception:
-            return e.code, {"message": raw}
+call = ApiClient(BASE).call
 
 # ---------- 报名 30 ----------
 cands = []

@@ -191,7 +191,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   searchCandidates, getCandidatesStats, deleteCandidate, deleteAll,
-  exportCsvUrl, batchImportCandidates, moveToSecondRound, decideAdmission,
+  exportCandidatesCsv, batchImportCandidates, moveToSecondRound, decideAdmission,
 } from '@/api/candidates';
 import { getSession } from '@/utils/auth';
 import type { Candidate, StatsResponse } from '@/types';
@@ -324,6 +324,7 @@ function changePage(p: number) {
 
 async function handleExport() {
   exporting.value = true;
+  let downloadUrl: string | undefined;
   try {
     const f = appliedFilter.value;
     const params: Record<string, string | number | undefined> = {};
@@ -332,14 +333,24 @@ async function handleExport() {
     if (f.groupName) params.groupName = f.groupName;
     if (f.minScore !== '') params.minScore = Number(f.minScore);
     if (f.maxScore !== '') params.maxScore = Number(f.maxScore);
-    const url = exportCsvUrl(params);
+    const blob = await exportCandidatesCsv(params);
+    downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = downloadUrl;
     a.download = `面试结果_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    document.body.appendChild(a);
+    try {
+      a.click();
+    } finally {
+      a.remove();
+    }
   } catch (err) {
     ElMessage.error((err as Error).message || '导出失败');
   } finally {
+    if (downloadUrl) {
+      const url = downloadUrl;
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
     exporting.value = false;
   }
 }

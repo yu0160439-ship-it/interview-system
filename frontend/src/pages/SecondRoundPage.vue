@@ -279,13 +279,15 @@ const currentGroup = computed(() => canViewAllGroups.value ? activeGroup.value :
 
 const allQueue = computed(() => [...waiting.value, ...interviewing.value]);
 const displayedQueue = computed(() =>
-  allQueue.value.filter((c) => (c.groupName ?? 'A') === currentGroup.value),
+  allQueue.value.filter((c) => c.groupName === currentGroup.value),
 );
 
-const currentInterviewing = computed(() => interviewing.value[0] ?? null);
+const currentInterviewing = computed(() =>
+  interviewing.value.find((c) => c.groupName === currentGroup.value) ?? null,
+);
 const selectedCandidate = computed(() => {
   if (selectedCandidateId.value) {
-    return allQueue.value.find((c) => c.id === selectedCandidateId.value) ?? null;
+    return displayedQueue.value.find((c) => c.id === selectedCandidateId.value) ?? null;
   }
   return currentInterviewing.value;
 });

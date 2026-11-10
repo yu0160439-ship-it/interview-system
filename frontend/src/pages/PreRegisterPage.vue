@@ -178,7 +178,7 @@
       <template #footer>
         <el-button @click="duplicateDialogOpen = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="handleConfirmDuplicate">
-          确认覆盖并签到
+          使用已有信息签到
         </el-button>
       </template>
     </el-dialog>
@@ -328,15 +328,26 @@ async function handleRegisterAndCheckIn(force: boolean) {
       acceptAdjust: form.value.acceptAdjust,
       force,
     });
-    await checkInPublic(created.id);
+    if (created.status === 'pre_registered') {
+      await checkInPublic(created.id);
+      ElMessage.success('签到成功，请在候场区等待叫号');
+    } else if (created.status === 'waiting') {
+      ElMessage.info('您已签到，请在候场区等待叫号');
+    } else {
+      matchedCandidates.value = [created];
+      selectedCandidate.value = created;
+      pageState.value = 'found';
+      duplicateDialogOpen.value = false;
+      ElMessage.info('已找到已有报名信息，请查看当前面试状态');
+      return;
+    }
     duplicateDialogOpen.value = false;
-    ElMessage.success('签到成功，请在候场区等待叫号');
     form.value = emptyForm();
     pageState.value = 'chooseType';
   } catch (err: unknown) {
     console.error('报名签到失败', err);
     const e = err as Error & { statusCode?: number };
-    if (e.statusCode === 409) {
+    if (e.statusCode === 409 && !force) {
       duplicateDialogOpen.value = true;
     } else {
       ElMessage.error(e.message || '提交失败，请重试');

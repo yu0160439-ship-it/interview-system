@@ -1,34 +1,16 @@
 # -*- coding: utf-8 -*-
 """二面三席链路复验：一面报名->签到->叫号->三席打分->推进二面->二面签到->分配组->二面叫号->二面三席打分->大屏二面视图。"""
 import json
-import urllib.request
-import urllib.error
+from api_client import ApiClient
 
 BASE = "http://localhost:8080/api/candidates"
 ADMIN = "admin"
-ADMIN_PWD = "change-me"
 A_SEATS = ["面试官A1", "面试官A2", "面试官A3"]
 
 results = []
 
 
-def call(method, path, body=None):
-    url = BASE + path
-    data = None
-    headers = {"Content-Type": "application/json; charset=utf-8"}
-    if body is not None:
-        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, (json.loads(raw) if raw else {})
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8")
-        try:
-            return e.code, json.loads(raw)
-        except Exception:
-            return e.code, {"message": raw}
+call = ApiClient(BASE).call
 
 
 def check(label, cond, extra=""):
@@ -77,14 +59,16 @@ def main():
     status, cand = call("POST", "/second/assign-group", {"candidateId": cid, "groupName": "A", "operatorName": ADMIN})
     check("二面分配A组", status == 200 and cand.get("groupName") == "A", f"group={cand.get('groupName')}")
 
+    # 二面官只能在二面场次叫号，先切换全局场次。
+    status, _ = call("POST", "/display/toggle-mode", {"operatorName": ADMIN, "mode": "second"})
+    check("大屏切二面模式", status == 200)
+
     # 9. 二面叫号（二面官身份）
     status, cand = call("POST", "/second/start", {"candidateId": cid, "interviewerName": A_SEATS[0]})
     check("二面叫号", status == 200 and cand.get("status") == "second_interviewing",
           f"status={cand.get('status')} {cand.get('message','')}")
 
-    # 10. 大屏切二面模式并核验 A-D 分组、面试中考生上大屏
-    status, _ = call("POST", "/display/toggle-mode", {"operatorName": ADMIN, "mode": "second"})
-    check("大屏切二面模式", status == 200)
+    # 10. 核验 A-D 分组、面试中考生上大屏
     status, big = call("GET", "/display/big-screen")
     groups = [g["groupName"] for g in big.get("groups", [])]
     check("大屏二面为A-D组", sorted(groups) == ["A", "B", "C", "D"], f"groups={groups}")

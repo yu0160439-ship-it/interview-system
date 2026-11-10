@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """分数边界：越界分数、缺分、同批重复打分应被拒绝且不写库。"""
-import json, urllib.request, urllib.error
+from api_client import ApiClient
 
 BASE = "http://localhost:8080/api/candidates"
 ADMIN = "admin"
@@ -11,20 +11,7 @@ def check(label, cond, extra=""):
     if not cond:
         fails.append((label, extra))
 
-def call(method, path, body=None):
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
-    r = urllib.request.Request(BASE + path, data=data, method=method)
-    r.add_header("Content-Type", "application/json; charset=utf-8")
-    try:
-        with urllib.request.urlopen(r, timeout=10) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, (json.loads(raw) if raw else {})
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "ignore")
-        try:
-            return e.code, json.loads(raw)
-        except Exception:
-            return e.code, {"message": raw}
+call = ApiClient(BASE).call
 
 st, res = call("GET", "?pageSize=100")
 items = res.get("items", [])

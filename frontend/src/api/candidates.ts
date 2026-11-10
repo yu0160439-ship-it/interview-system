@@ -14,6 +14,26 @@ import { authHeader } from '@/utils/auth';
 
 const BASE_URL = '/';
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly statusCode: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+async function responseError(res: Response): Promise<ApiError> {
+  let message = `请求失败 (${res.status})`;
+  try {
+    const data = await res.json();
+    if (data && typeof data.message === 'string') {
+      message = data.message;
+    }
+  } catch {
+    // 非 JSON 错误响应使用 HTTP 状态提示。
+  }
+  return new ApiError(message, res.status);
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(BASE_URL + url.replace(/^\//, ''), {
     ...options,
@@ -24,16 +44,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     },
   });
   if (!res.ok) {
-    let message = `请求失败 (${res.status})`;
-    try {
-      const data = await res.json();
-      if (data && typeof data.message === 'string') {
-        message = data.message;
-      }
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(message);
+    throw await responseError(res);
   }
   return res.json();
 }
@@ -269,11 +280,26 @@ export async function toggleDisplayMode(operatorName: string, mode: string): Pro
   });
 }
 
-export function exportCsvUrl(params: { groupName?: string; minScore?: number; maxScore?: number; keyword?: string }): string {
+export interface ExportParams {
+  groupName?: string;
+  minScore?: number;
+  maxScore?: number;
+  keyword?: string;
+  status?: string;
+}
+
+export function exportCsvUrl(params: ExportParams): string {
   const query = new URLSearchParams();
   if (params.groupName) query.set('groupName', params.groupName);
   if (params.minScore !== undefined) query.set('minScore', String(params.minScore));
   if (params.maxScore !== undefined) query.set('maxScore', String(params.maxScore));
   if (params.keyword) query.set('keyword', params.keyword);
+  if (params.status) query.set('status', params.status);
   return `/api/candidates/export?${query.toString()}`;
+}
+
+export async function exportCandidatesCsv(params: ExportParams): Promise<Blob> {
+  const res = await fetch(exportCsvUrl(params), { headers: authHeader() });
+  if (!res.ok) throw await responseError(res);
+  return res.blob();
 }

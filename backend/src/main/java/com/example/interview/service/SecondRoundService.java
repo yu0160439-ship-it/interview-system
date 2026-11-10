@@ -1,10 +1,9 @@
 package com.example.interview.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.example.interview.common.ApiException;
 import com.example.interview.common.PasswordUtil;
-import com.example.interview.config.AuthContext;
-import com.example.interview.config.AuthUser;
 import com.example.interview.config.InterviewersConfig;
 import com.example.interview.config.JwtUtil;
 import com.example.interview.dto.AssignGroupRequest;
@@ -77,7 +76,7 @@ public class SecondRoundService {
             throw ApiException.badRequest("账号或密码错误");
         }
         boolean isAdmin = "admin".equals(staff.getRole());
-        if (!isAdmin && !SECOND_GROUPS.contains(staff.getGroupName())) {
+        if (!isAdmin && (!"interviewer".equals(staff.getRole()) || !SECOND_GROUPS.contains(staff.getGroupName()))) {
             throw ApiException.badRequest("二面面试官身份未登记");
         }
         Map<String, Object> result = new LinkedHashMap<>();
@@ -101,8 +100,8 @@ public class SecondRoundService {
                                 CandidateStatus.SECOND_INTERVIEWING)
                         .orderByAsc(Candidate::getGroupNumber)
                         .orderByAsc(Candidate::getGlobalNumber));
-        if (staff != null && !"admin".equals(staff.getRole())) {
-            if ("floating".equals(staff.getRole())) {
+        if (!"admin".equals(staff.getRole())) {
+            if (!"interviewer".equals(staff.getRole()) || !SECOND_GROUPS.contains(staff.getGroupName())) {
                 throw ApiException.forbidden("流动人员不可进入面试工作台");
             }
             candidateService.requireRound(staff.getUsername(), ScreenStateService.MODE_SECOND);
@@ -132,16 +131,25 @@ public class SecondRoundService {
         if (candidateId == null || candidateId.isBlank()) {
             throw ApiException.badRequest("缺少考生ID");
         }
-        requireAdmin(req.getOperatorName());
+        requireAdmin();
         Candidate existing = candidateService.mustFind(candidateId);
         if (!CandidateStatus.FIRST_COMPLETED.equals(existing.getStatus())) {
             throw ApiException.badRequest("仅一面完成状态可推进到二面");
         }
+        String oldGroup = existing.getGroupName();
         existing.setStatus(CandidateStatus.SECOND_WAITING);
         existing.setGroupName(null);
         existing.setGroupNumber(0);
         existing.setUpdatedAt(LocalDateTime.now());
-        candidateMapper.updateById(existing);
+        candidateMapper.update(null, new LambdaUpdateWrapper<Candidate>()
+                .eq(Candidate::getId, existing.getId())
+                .set(Candidate::getStatus, existing.getStatus())
+                .set(Candidate::getGroupName, null)
+                .set(Candidate::getGroupNumber, existing.getGroupNumber())
+                .set(Candidate::getUpdatedAt, existing.getUpdatedAt()));
+        if (oldGroup != null) {
+            candidateService.recalcGroupNumbers(oldGroup);
+        }
         candidateService.clearCache();
         sseHub.broadcastData("move-second");
         return candidateService.toVO(existing,
@@ -157,7 +165,7 @@ public class SecondRoundService {
         if (req.getGroupName() == null || req.getGroupName().isBlank()) {
             throw ApiException.badRequest("缺少组别");
         }
-        candidateService.requireAdminOrFloating(req.getOperatorName());
+        candidateService.requireAdminOrFloating(candidateService.effectiveOperator(req.getOperatorName()));
         if (!SECOND_GROUPS.contains(req.getGroupName())) {
             throw ApiException.badRequest("无效的二面组别，仅支持 A/B/C/D");
         }
@@ -203,12 +211,12 @@ public class SecondRoundService {
         if (req.getCandidateId() == null || req.getCandidateId().isBlank()) {
             throw ApiException.badRequest("缺少考生ID");
         }
-        String interviewer = req.getInterviewerName();
+        String interviewer = candidateService.effectiveOperator(req.getInterviewerName());
         String role = candidateService.roleOf(interviewer);
         boolean isAdmin = "admin".equals(role);
         Staff staff = isAdmin ? null : candidateService.findStaff(interviewer);
         if (!isAdmin) {
-            if (staff == null || !SECOND_GROUPS.contains(staff.getGroupName())) {
+            if (staff == null || !"interviewer".equals(staff.getRole()) || !SECOND_GROUPS.contains(staff.getGroupName())) {
                 throw ApiException.forbidden("无权限操作，仅二面面试官可开始二面");
             }
             candidateService.requireRound(interviewer, ScreenStateService.MODE_SECOND);
@@ -276,7 +284,6 @@ public class SecondRoundService {
 
     /** 候场大屏显示模式。 */
     public Map<String, Object> getDisplayMode(OperatorRequest req) {
-        requireAdmin(req.getOperatorName());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("mode", screenState.getDisplayMode());
         return result;
@@ -284,7 +291,7 @@ public class SecondRoundService {
 
     @Transactional
     public Map<String, Object> toggleDisplayMode(ToggleModeRequest req) {
-        requireAdmin(req.getOperatorName());
+        requireAdmin();
         if (req.getMode() == null || req.getMode().isBlank()) {
             throw ApiException.badRequest("缺少 mode 参数");
         }
@@ -305,20 +312,18 @@ public class SecondRoundService {
         return screenState.getDisplayMode();
     }
 
-    private void requireAdmin(String name) {
-        if (name == null || !config.getAdminName().equals(name.trim())) {
-            throw ApiException.forbidden("无权限操作，仅管理员可执行");
-        }
+    private void requireAdmin() {
+        candidateService.requireAdmin(candidateService.effectiveOperator(null));
     }
 
-    /** 从线程上下文解析当前登录工作人员；未携带身份返回 null。 */
+    /** 队列只接受当前认证账号，禁止匿名或已删除账号获得全部分组数据。 */
     private Staff currentStaff() {
-        AuthUser user = AuthContext.get();
-        String name = user == null ? null : user.getName();
-        if (name == null || name.isBlank()) {
-            return null;
-        }
-        return staffMapper.selectOne(
+        String name = candidateService.effectiveOperator(null);
+        Staff staff = staffMapper.selectOne(
                 new LambdaQueryWrapper<Staff>().eq(Staff::getUsername, name.trim()));
+        if (staff == null) {
+            throw ApiException.forbidden("工作人员身份无效，请重新登录");
+        }
+        return staff;
     }
 }

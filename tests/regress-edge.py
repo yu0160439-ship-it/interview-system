@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """异常边界回归：重复报名/重复签到/错误状态打分/跨组打分/非法流转/非法分组/越权角色/非法录取决策。
 断言这些请求被后端以 400/403/409 拒绝，且不产生错误数据。"""
-import json, urllib.request, urllib.error
+from api_client import ApiClient
 
 BASE = "http://localhost:8080/api/candidates"
 ADMIN = "admin"
@@ -12,20 +12,7 @@ def check(label, cond, extra=""):
     if not cond:
         fails.append((label, extra))
 
-def call(method, path, body=None):
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
-    r = urllib.request.Request(BASE + path, data=data, method=method)
-    r.add_header("Content-Type", "application/json; charset=utf-8")
-    try:
-        with urllib.request.urlopen(r, timeout=10) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, (json.loads(raw) if raw else {})
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "ignore")
-        try:
-            return e.code, json.loads(raw)
-        except Exception:
-            return e.code, {"message": raw}
+call = ApiClient(BASE).call
 
 # 拉取当前考生
 st, res = call("GET", "?pageSize=100")

@@ -12,8 +12,7 @@ import java.util.Date;
 
 /**
  * JWT 工具：签发与解析访问令牌。
- * 兼容模式：若请求带 Bearer token 则用于身份识别；不带 token 的请求仍允许（身份从请求参数读取），
- * 以便旧前端与公开接口可以直接调用。
+ * 工作人员接口必须携带有效 Bearer token；公开报名、签到和大屏接口由拦截器单独放行。
  */
 @Component
 public class JwtUtil {

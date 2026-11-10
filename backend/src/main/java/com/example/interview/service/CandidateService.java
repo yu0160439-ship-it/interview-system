@@ -46,11 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * 一面 + 管理 + 大屏业务逻辑（对应原 Cloudflare Functions 的 candidates-handler.js）。
- * 身份约定：请求携带 Authorization: Bearer token 时优先使用 token 身份；
- * 否则从请求参数 operatorName / interviewerName 读取（兼容旧前端）。
+ * 工作人员身份仅取自已验证的 Bearer token；请求参数不参与身份认证。
  */
 @Slf4j
 @Service
@@ -129,13 +129,13 @@ public class CandidateService {
         }
     }
 
-    /** 当前请求身份：优先 token，其次显式参数。 */
-    private String effectiveOperator(String explicit) {
+    /** 当前请求身份只取已验证的 token，保留参数以兼容已有调用契约。 */
+    protected String effectiveOperator(String explicit) {
         AuthUser user = AuthContext.get();
         if (user != null && user.getName() != null && !user.getName().isBlank()) {
             return user.getName();
         }
-        return explicit;
+        throw ApiException.unauthorized("请先登录工作人员账号");
     }
 
     protected String generateId() {
@@ -245,6 +245,7 @@ public class CandidateService {
     /** 管理员创建预报名（仅校验姓名）。 */
     @Transactional
     public Candidate preRegister(PreRegisterRequest dto) {
+        requireAdminOrFloating(effectiveOperator(null));
         String name = trim(dto.getName());
         if (name.isEmpty()) {
             throw ApiException.badRequest("姓名为必填项");
@@ -285,8 +286,14 @@ public class CandidateService {
 
         Candidate existing = candidateMapper.selectOne(
                 new LambdaQueryWrapper<Candidate>().eq(Candidate::getPhone, phone).last("LIMIT 1"));
-        if (existing != null && !dto.isForce()) {
-            throw ApiException.conflict("该手机号已报名，请勿重复提交");
+        if (existing != null) {
+            if (!dto.isForce()) {
+                throw ApiException.conflict("该手机号已报名，请勿重复提交");
+            }
+            if (!name.equals(trim(existing.getName()))) {
+                throw ApiException.conflict("该手机号对应的姓名不一致，请核对姓名和手机号");
+            }
+            return toVO(existing, scoreMapOf(List.of(existing.getId())).getOrDefault(existing.getId(), List.of()));
         }
 
         Candidate c = newCandidate(name, dto);
@@ -387,6 +394,7 @@ public class CandidateService {
     // ==================== 搜索 / 统计 ====================
 
     public Map<String, Object> search(Map<String, String> q) {
+        requireAdminOrFloating(effectiveOperator(null));
         int page = parseInt(q.get("page"), 1);
         int pageSize = Math.min(parseInt(q.get("pageSize"), 20), 100);
         int offset = (page - 1) * pageSize;
@@ -413,6 +421,7 @@ public class CandidateService {
     }
 
     public Map<String, Object> stats(Map<String, String> q) {
+        requireAdminOrFloating(effectiveOperator(null));
         String groupName = q.get("groupName");
         String keyword = q.get("keyword");
         Double minScore = parseDoubleOrNull(q.get("minScore"));
@@ -589,9 +598,7 @@ public class CandidateService {
 
     public Map<String, Object> batchImport(BatchImportRequest req) {
         String operator = effectiveOperator(req.getOperatorName());
-        if (!config.getAdminName().equals(operator)) {
-            throw ApiException.forbidden("无权限操作，仅管理员可执行");
-        }
+        requireAdmin(operator);
         List<PreRegisterRequest> items = req.getItems() == null ? List.of() : req.getItems();
         int success = 0;
         int failed = 0;
@@ -637,10 +644,11 @@ public class CandidateService {
 
     /** CSV 导出（UTF-8 BOM，Excel 可直接打开）。 */
     public String exportCsv(Map<String, String> q) {
-        List<Candidate> rows = candidateMapper.selectList(
-                new LambdaQueryWrapper<Candidate>()
-                        .apply(baseWhereSql(q))
-                        .orderByAsc(Candidate::getGlobalNumber));
+        requireAdmin(effectiveOperator(null));
+        List<Candidate> rows = candidateMapper.searchList(
+                q.get("keyword"), q.get("groupName"), q.get("status"), false,
+                parseDoubleOrNull(q.get("minScore")), parseDoubleOrNull(q.get("maxScore")),
+                "globalNumber", false, null, 0);
         Map<String, List<InterviewerScore>> scoreMap = scoreMapOf(rows.stream().map(Candidate::getId).toList());
         try {
             StringWriter sw = new StringWriter();
@@ -658,7 +666,7 @@ public class CandidateService {
                         : String.format("%.2f", first.stream().map(InterviewerScore::getScore)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                                 .divide(BigDecimal.valueOf(first.size()), 2, RoundingMode.HALF_UP));
-                String dept = List.of(row.getFirstDepartment(), row.getSecondDepartment()).stream()
+                String dept = Stream.of(row.getFirstDepartment(), row.getSecondDepartment())
                         .filter(x -> x != null && !x.isBlank()).reduce((a, b) -> a + "/" + b).orElse("");
                 printer.printRecord(
                         row.getGlobalNumber() == null ? "" : row.getGlobalNumber(),
@@ -697,21 +705,6 @@ public class CandidateService {
     private String seatComment(List<InterviewerScore> list, int index) {
         InterviewerScore s = seatAt(list, index);
         return s == null ? "" : nullSafeTrim(s.getJudgeComment());
-    }
-
-    private String baseWhereSql(Map<String, String> q) {
-        List<String> conds = new ArrayList<>();
-        if (q.containsKey("groupName") && q.get("groupName") != null && !q.get("groupName").isBlank()) {
-            conds.add("group_name = '" + q.get("groupName").replace("'", "''") + "'");
-        }
-        if (q.containsKey("keyword") && q.get("keyword") != null && !q.get("keyword").isBlank()) {
-            String kw = q.get("keyword").replace("'", "''");
-            conds.add("(name LIKE '%" + kw + "%' OR class_name LIKE '%" + kw + "%' OR phone LIKE '%" + kw + "%')");
-        }
-        if (conds.isEmpty()) {
-            return "1=1";
-        }
-        return String.join(" AND ", conds);
     }
 
     // ==================== 大屏 / 统计 ====================
@@ -896,17 +889,18 @@ public class CandidateService {
 
     public List<Candidate> getGroupQueue(String groupName, String interviewerName) {
         String effective = effectiveOperator(interviewerName);
-        Staff staff = effective == null || effective.isBlank() ? null : findStaff(effective);
-        if (staff != null) {
-            String role = staff.getRole();
-            if ("floating".equals(role)) {
-                throw ApiException.forbidden("流动人员不可进入面试工作台");
+        Staff staff = findStaff(effective);
+        if (staff == null) {
+            throw ApiException.forbidden("工作人员身份无效，请重新登录");
+        }
+        String role = staff.getRole();
+        if (!"admin".equals(role)) {
+            if (!"interviewer".equals(role) || !FIRST_GROUPS.contains(staff.getGroupName())) {
+                throw ApiException.forbidden("仅面试官和管理员可进入面试工作台");
             }
-            if (!"admin".equals(role)) {
-                requireRound(effective, ScreenStateService.MODE_FIRST);
-                if (!staff.getGroupName().equals(groupName)) {
-                    throw ApiException.badRequest("无权查看其他组别队列");
-                }
+            requireRound(effective, ScreenStateService.MODE_FIRST);
+            if (!staff.getGroupName().equals(groupName)) {
+                throw ApiException.badRequest("无权查看其他组别队列");
             }
         }
         List<Candidate> rows = candidateMapper.selectList(
@@ -985,24 +979,28 @@ public class CandidateService {
 
     @Transactional
     public Candidate submitScore(String id, ScoreRequest req) {
-        String interviewerName = trim(req.getInterviewerName());
-        if (interviewerName.isEmpty()) {
-            throw ApiException.badRequest("缺少面试官姓名");
-        }
-        String role = roleOf(interviewerName);
+        String operator = effectiveOperator(null);
+        String role = roleOf(operator);
         if ("floating".equals(role)) {
             throw ApiException.forbidden("无权限操作，流动人员不可打分");
         }
+        if (!"admin".equals(role) && !"interviewer".equals(role)) {
+            throw ApiException.forbidden("工作人员身份无效，请重新登录");
+        }
         boolean isAdmin = "admin".equals(role);
-        InterviewersConfig.Member member = isAdmin ? null : config.findMember(interviewerName);
-        if (!isAdmin && member == null) {
+        String interviewerName = isAdmin ? trim(req.getInterviewerName()) : operator;
+        if (interviewerName.isEmpty()) {
+            throw ApiException.badRequest("缺少面试官姓名");
+        }
+        InterviewersConfig.Member member = config.findMember(interviewerName);
+        if (member == null && (!isAdmin || !operator.equals(interviewerName))) {
             throw ApiException.badRequest("面试官身份无效");
         }
         Candidate candidate = mustFind(id);
         if (candidate.getGroupName() == null) {
             throw ApiException.badRequest("考生尚未分配组别，无法打分");
         }
-        if (!isAdmin && !candidate.getGroupName().equals(member.getGroup())) {
+        if (member != null && !candidate.getGroupName().equals(member.getGroup())) {
             throw ApiException.badRequest("只能给本组考生打分");
         }
         if (req.getScore() == null) {
@@ -1027,6 +1025,9 @@ public class CandidateService {
         String role = roleOf(operator);
         if ("floating".equals(role)) {
             throw ApiException.forbidden("无权限操作，流动人员不可打分");
+        }
+        if (!"admin".equals(role) && !"interviewer".equals(role)) {
+            throw ApiException.forbidden("工作人员身份无效，请重新登录");
         }
         boolean isAdmin = "admin".equals(role);
         InterviewersConfig.Member opMember = isAdmin ? null : config.findMember(operator);
@@ -1236,6 +1237,7 @@ public class CandidateService {
 
     @Transactional
     public Map<String, Object> deleteCandidate(String id) {
+        requireAdmin(effectiveOperator(null));
         Candidate existing = mustFind(id);
         scoreMapper.delete(new LambdaQueryWrapper<InterviewerScore>().eq(InterviewerScore::getCandidateId, id));
         candidateMapper.deleteById(id);
@@ -1253,6 +1255,7 @@ public class CandidateService {
 
     @Transactional
     public Map<String, Object> deleteAll(DeleteAllRequest req) {
+        requireAdmin(effectiveOperator(null));
         if (req.getPassword() == null || req.getPassword().isEmpty()) {
             throw ApiException.badRequest("请输入删除密码");
         }
@@ -1281,15 +1284,15 @@ public class CandidateService {
     }
 
     protected void requireAdminOrFloating(String name) {
-        String role = roleOf(name);
-        if (role == null || "interviewer".equals(role)) {
+        String role = roleOf(effectiveOperator(name));
+        if (!"admin".equals(role) && !"floating".equals(role)) {
             throw ApiException.forbidden("无权限操作，仅管理员和流动人员可执行");
         }
     }
 
     /** 仅管理员可执行（二面推进/分组、审批、录取决策等）；流动人员与面试官均被拒绝。 */
     protected void requireAdmin(String name) {
-        String role = roleOf(name);
+        String role = roleOf(effectiveOperator(name));
         if (role == null || !"admin".equals(role)) {
             throw ApiException.forbidden("无权限操作，仅管理员可执行");
         }
